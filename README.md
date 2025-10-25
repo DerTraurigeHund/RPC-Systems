@@ -1,180 +1,222 @@
-# RPC-System mit ZeroMQ
+# 🔐 Secure RPC Framework
 
-Diese Dokumentation beschreibt die Einrichtung und Nutzung eines skalierbaren RPC-Systems auf Basis von ZeroMQ (pyzmq) im Request–Reply-Modus mit einem ROUTER–DEALER-Broker und Worker-Pool.
-
-## Inhalt
-
-1. [Einführung](#einf%C3%BChrung)
-2. [Architektur](#architektur)
-3. [Voraussetzungen](#voraussetzungen)
-4. [Installation](#installation)
-5. [Konfiguration](#konfiguration)
-6. [Server](#server)
-
-   * [Aufbau](#aufbau)
-   * [Beispiel ](#beispiel-serverpy)[`server.py`](#beispiel-serverpy)
-7. [Client](#client)
-
-   * [Aufbau](#aufbau-1)
-   * [Beispiel ](#beispiel-clientpy)[`client.py`](#beispiel-clientpy)
-8. [Sicherheit](#sicherheit)
-9. [Tipps zur Produktion](#tipps-zur-produktion)
-10. [Fehlerbehandlung](#fehlerbehandlung)
-11. [Lizenz](#lizenz)
+Ein leichtgewichtiges, aber hochsicheres **Remote Procedure Call (RPC) Framework**,  
+geschrieben in **Python** (Server + Client) und **JavaScript (Browser)**,  
+mit automatischer **Ende-zu-Ende-Verschlüsselung**, **API-Key-Authentifizierung**  
+und **synchronisierten Shared Variables**.
 
 ---
 
-## Einführung
+## 🚀 Features
 
-Dieses Dokument erklärt, wie du einen RPC-Server und -Client in Python mit ZeroMQ (pyzmq) erstellst. Ziel ist eine niedrige Latenz, horizontale Skalierbarkeit und einfache Erweiterbarkeit ohne `asyncio` und ohne gRPC.
+| Kategorie | Beschreibung |
+|------------|---------------|
+| 🔑 **Authentifizierung** | API-Key pro Benutzer (`[{user_id, api_key}]`) |
+| 🔒 **Sicherheit** | NaCl Public-Key-Verschlüsselung (Curve25519 + XSalsa20-Poly1305) |
+| 🧩 **Transport** | ZeroMQ (Python) & WebSocket (Browser) |
+| 🔄 **Shared Variables** | Variablen werden zwischen Client und Server synchronisiert |
+| 🌐 **Web-Unterstützung** | JavaScript-Client für Browser mit automatischem Key-Exchange |
+| ⚙️ **Threaded Server** | Worker-Pool zur parallelen Ausführung von RPC-Aufrufen |
+| 💬 **Public RPCs** | Funktionen können ohne Authentifizierung verfügbar gemacht werden |
+| 🧠 **Kontextvariable** | Serverseitig Zugriff auf die User-ID des aufrufenden Clients |
 
-## Architektur
+---
 
-* **Broker** (ROUTER–DEALER): Leitet Nachrichten zwischen Clients und Arbeitern weiter.
-* **Worker-Pool**: Führen Anfragen parallel in Threads aus.
-* **REQ-Client**: Sendet synchrone Anfragen an den Server.
+## 🧩 Projektstruktur
 
-## Voraussetzungen
+```
 
-* Python 3.7+
-* Paket `pyzmq`
-* Grundkenntnisse in Python und Netzwerk-Programmierung
+project/
+├─ server/
+│  ├─ rpc_server.py
+│  └─ server.md
+│
+├─ client_python/
+│  ├─ rpc_client.py
+│  └─ PYClient.md
+│
+├─ client_js/
+│  ├─ rpc_client.js
+│  ├─ index.html
+│  └─ JSClient.md
+│
+└─ README.md  ← (diese Datei)
 
-## Installation
+````
+
+---
+
+## ⚙️ Installation
+
+### 📦 Python Server
 
 ```bash
-pip install pyzmq
+pip install pyzmq pynacl
+````
+
+### 💻 Browser Client
+
+```html
+<script type="module">
+  import sodium from "https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.11/dist/modules/libsodium-wrappers.js";
+</script>
 ```
 
-## Konfiguration
+---
 
-* Standard-Host: `localhost`
-* Standard-Port: `8421`
-* Timeout: `5000` ms
-* Worker-Anzahl: `4` (anpassbar)
+## 🔧 Schnellstart
 
-Parameter werden beim Instanziieren der Klassen übergeben.
-
-## Server
-
-### Aufbau
-
-Die Klasse `RPCServer` bietet:
-
-* Initialisierung mit Pflicht- und optionalen Parametern
-* Registrierung externer Funktionen unter Aliases
-* Start des Brokers und Worker-Pools
-
-**Konstruktor**:
+### 1️⃣ Server starten
 
 ```python
-RPCServer(
-    password: str,
-    server_name: str,
-    host: str = "localhost",
-    port: int = 8421,
-    timeout: int = 5000,
-    workers: int = 4
-)
+from rpc_server import RPCServer
+
+api_keys = [{"user_id": 1, "api_key": "abc123"}]
+server = RPCServer(api_keys, server_name="MyRPCServer")
+
+def add(a, b): return a + b
+def ping(): return "pong"
+
+server.add_external_function(add, "add")               # Auth erforderlich
+server.add_external_function(ping, "ping", public=True)  # Öffentlich
+
+server.serve_forever()
 ```
 
-**Methoden**:
+---
 
-* `add_external_function(func: Callable, alias: str)`: Registriert eine Funktion.
-* `serve_forever()`: Startet Broker und Worker-Threads.
-
-### Beispiel `server.py`
+### 2️⃣ Python-Client
 
 ```python
-import time
-from rpc import RPCServer
+from rpc_client import RPCClient
 
-# Beispiel-Funktionen
-def add(a, b):
-    """Addiert zwei Zahlen."""
-    return a + b
+client = RPCClient(api_key="abc123")
+print(client.ping())       # -> "pong"
+print(client.add(10, 5))   # -> 15
 
-def slow_multiply(a, b):
-    """Multipliziert mit Verzögerung."""
-    time.sleep(1)
-    return a * b
-
-if __name__ == "__main__":
-    server = RPCServer(
-        password="geheim",
-        server_name="Rechner1",
-        host="localhost",
-        port=8421,
-        timeout=5000,
-        workers=4
-    )
-
-    server.add_external_function(add, "add")
-    server.add_external_function(slow_multiply, "mul")
-
-    print("Starte RPC-Server auf tcp://localhost:8421 …")
-    server.serve_forever()
+client.shared.set("zahl", 42)
+print(client.shared.get("zahl"))  # 42
 ```
 
-## Client
+---
 
-### Aufbau
+### 3️⃣ JavaScript-Client (Browser)
 
-Die Klasse `RPCClient` ermöglicht synchrone RPC-Aufrufe über Methoden-Dynamik.
+```html
+<script type="module">
+  import sodium from "https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.11/dist/modules/libsodium-wrappers.js";
+  import { RPCClient } from "./rpc_client.js";
 
-**Konstruktor**:
+  const client = new RPCClient({
+    apiKey: "abc123",
+    websocketUrl: "ws://localhost:8421"
+  });
+
+  await client.init();
+
+  console.log(await client.call("ping"));
+  console.log(await client.call("add", 3, 4));
+
+  await client.shared.set("score", 99);
+  console.log(client.shared.get("score"));
+</script>
+```
+
+---
+
+## 🔑 Sicherheit
+
+| Mechanismus                | Beschreibung                                       |
+| -------------------------- | -------------------------------------------------- |
+| **Handshake**              | Automatischer Public-Key-Austausch bei Verbindung  |
+| **Verschlüsselung**        | NaCl `crypto_box` (Curve25519 + XSalsa20-Poly1305) |
+| **Authentifizierung**      | API-Key-basiert pro Benutzer                       |
+| **Öffentliche Funktionen** | explizit markiert mit `public=True`                |
+| **Shared Vars**            | werden über sichere RPCs synchronisiert            |
+
+---
+
+## 🧠 Architekturüberblick
+
+```
++-------------------------+      +--------------------------+
+|     RPC Client (JS/Py)  | <--> |      RPC Server (Py)     |
+|--------------------------|     |--------------------------|
+| - Keypair erstellen      |     | - Keypair erstellen      |
+| - Handshake via PubKey   |     | - Handshake akzeptieren   |
+| - Nachricht verschlüsseln|     | - Nachricht entschlüsseln |
+| - Funktionen aufrufen    |     | - Funktionen ausführen    |
+| - Shared Vars sync       |     | - Shared Vars speichern   |
++--------------------------+     +--------------------------+
+```
+
+---
+
+## 🧠 Shared Variables
+
+Synchronisierte Variablen zwischen Client & Server.
+Jede Änderung auf einer Seite wird über RPC übertragen.
+
+| Seite             | Beispielcode                         |
+| ----------------- | ------------------------------------ |
+| **Python Client** | `client.shared.set("zahl", 7)`       |
+| **JS Client**     | `await client.shared.set("zahl", 7)` |
+| **Server**        | `server.shared.get("zahl")`          |
+
+---
+
+## 🧩 Öffentliche Funktionen
+
+Funktionen können ohne API-Key aufgerufen werden:
 
 ```python
-RPCClient(
-    password: str,
-    host: str = "localhost",
-    port: int = 8421
-)
+def ping(): return "pong"
+server.add_external_function(ping, "ping", public=True)
 ```
 
-**Dynamisches Attribut**:
+Aufrufbar durch **alle Clients**, auch ohne Authentifizierung.
 
-* `__getattr__` erstellt eine Proxy-Methode, die JSON-Nachrichten sendet.
+---
 
-### Beispiel `client.py`
+## 🔍 Kontextvariable (`rpc_context`)
+
+Innerhalb registrierter Funktionen steht die User-ID des Aufrufers zur Verfügung:
 
 ```python
-from rpc import RPCClient
+from rpc_server import rpc_context
 
-if __name__ == "__main__":
-    client = RPCClient(
-        password="geheim",
-        host="localhost",
-        port=8421
-    )
-
-    try:
-        result_add = client.add(5, 7)
-        print(f"5 + 7 = {result_add}")
-
-        result_mul = client.mul(3, 4)
-        print(f"3 * 4 = {result_mul}")
-
-    except Exception as e:
-        print(f"Fehler beim RPC-Aufruf: {e}")
+def whoami():
+    user = rpc_context.get()["user_id"]
+    return f"Hallo, User {user}"
 ```
 
-## Sicherheit
+---
 
-* Passwort-Abfrage auf Serverseite
-* Transport derzeit unverschlüsselt: **Empfehlung**: ØMQ CURVE (CurveZMQ) aktivieren
-* Tipp: Umgebungsvariablen oder `.env`-Datei für sensible Daten
+## 🧰 Technische Details
 
-## Tipps zur Produktion
+| Komponente        | Technologie                            |
+| ----------------- | -------------------------------------- |
+| Sprache           | Python 3.10+, JavaScript (ES6+)        |
+| Transport         | ZeroMQ (Python) / WebSocket (Browser)  |
+| Kryptografie      | libsodium / PyNaCl                     |
+| Authentifizierung | API-Key mit User-ID                    |
+| Synchronisierung  | Shared-State über RPC                  |
+| Multi-Threading   | Worker-Pool über DEALER–ROUTER-Pattern |
 
-* **Logging** mit `logging`-Modul
-* **Health-Check** (`ping()`-Funktion)
-* **Retries** und Backoff auf Client-Seite
-* **Prozess- oder Cluster-Modus** zur Skalierung über mehrere Maschinen
+---
 
-## Fehlerbehandlung
+## 📚 Weiterführende Dokumentation
 
-* Timeout-Fehler: `TimeoutError`
-* Funktionsfehler: `RuntimeError` mit Server-Fehlermeldung
-* Ungültige Funktion: `NameError`
-* Ungültiges Passwort: `PermissionError`
+* 📘 [Server Dokumentation](./server/server.md)
+* 🐍 [Python Client Dokumentation](./client_python/PYClient.md)
+* 🌐 [JavaScript Client Dokumentation](./client_js/JSClient.md)
+
+---
+
+## 💡 Ideen für zukünftige Erweiterungen
+
+* 🔁 Echtzeit-Updates für Shared Variablen (Push an alle Clients)
+* 🧩 Event Hooks (on_connect, on_disconnect, on_call)
+* 🔍 Logging & Monitoring Interface
+* 🔐 Token Refresh System
+* 🌍 WebSocket/HTTP Hybrid Transport
