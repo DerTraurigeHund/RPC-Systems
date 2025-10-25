@@ -27,19 +27,11 @@ und **synchronisierten Shared Variables**.
 ```
 
 project/
-├─ server/
-│  ├─ rpc_server.py
-│  └─ server.md
-│
-├─ client_python/
-│  ├─ rpc_client.py
-│  └─ PYClient.md
-│
-├─ client_js/
-│  ├─ rpc_client.js
-│  ├─ index.html
-│  └─ JSClient.md
-│
+├─ rpc_system.py
+├─ JSClient.js
+├─ Server.md
+├─ PYClient.md
+├─ JSClient.md
 └─ README.md  ← (diese Datei)
 
 ````
@@ -207,9 +199,9 @@ def whoami():
 
 ## 📚 Weiterführende Dokumentation
 
-* 📘 [Server Dokumentation](./server/server.md)
-* 🐍 [Python Client Dokumentation](./client_python/PYClient.md)
-* 🌐 [JavaScript Client Dokumentation](./client_js/JSClient.md)
+* 📘 [Server Dokumentation](.server.md)
+* 🐍 [Python Client Dokumentation](.PYClient.md)
+* 🌐 [JavaScript Client Dokumentation](.JSClient.md)
 
 ---
 
