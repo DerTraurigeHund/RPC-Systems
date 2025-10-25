@@ -199,9 +199,9 @@ def whoami():
 
 ## 📚 Weiterführende Dokumentation
 
-* 📘 [Server Dokumentation](.server.md)
-* 🐍 [Python Client Dokumentation](.PYClient.md)
-* 🌐 [JavaScript Client Dokumentation](.JSClient.md)
+* 📘 [Server Dokumentation](server.md)
+* 🐍 [Python Client Dokumentation](PYClient.md)
+* 🌐 [JavaScript Client Dokumentation](JSClient.md)
 
 ---
 
